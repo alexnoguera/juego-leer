@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>¡Aprende a Leer Jugando!</title>
+    
+    <!-- Cargando Tailwind CSS para estilos rápidos y responsivos -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Fuente infantil (Fredoka) -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Librería para el efecto de confeti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Fredoka', sans-serif;
+            /* Fondo de colores pastel suaves */
+            background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+            background-color: #fef08a; /* Fallback amarillo pastel */
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        /* Animación para letra incorrecta (vibración y color rojo) */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-8px); }
+            40%, 80% { transform: translateX(8px); }
+        }
+        .error-shake {
+            animation: shake 0.4s ease-in-out;
+            background-color: #fca5a5 !important; /* Rojo pastel */
+            color: white !important;
+            box-shadow: 0 8px 0 #ef4444 !important;
+        }
+
+        /* Animación al acertar una letra */
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            70% { transform: scale(1.15); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .pop-in {
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        /* Animación de flotación suave para el emoji */
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        .floating-emoji {
+            animation: float 2.5s infinite ease-in-out;
+        }
+
+        /* Casillas donde van las letras correctas */
+        .slot {
+            width: 55px;
+            height: 65px;
+            border: 4px dashed #cbd5e1;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: #64748b;
+            background-color: rgba(255, 255, 255, 0.6);
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+        }
+        
+        .slot.filled {
+            border: 4px solid #86efac; /* Verde pastel brillante */
+            background-color: #dcfce7;
+            color: #15803d;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        /* Botones de las letras desordenadas */
+        .letter-btn {
+            width: 55px;
+            height: 65px;
+            background-color: #ffffff;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: #6366f1; /* Índigo */
+            cursor: pointer;
+            /* Efecto de botón físico con sombra */
+            box-shadow: 0 6px 0 #a5b4fc, 0 10px 15px rgba(0,0,0,0.1);
+            transition: transform 0.1s, box-shadow 0.1s, background-color 0.2s;
+            text-transform: uppercase;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        /* Efecto de presionar (hundirse) */
+        .letter-btn:active {
+            transform: translateY(6px);
+            box-shadow: 0 0 0 #a5b4fc, 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .letter-btn.hidden-btn {
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        /* Ajustes para pantallas de móviles pequeñas */
+        @media (max-width: 400px) {
+            .slot, .letter-btn {
+                width: 45px;
+                height: 55px;
+                font-size: 1.8rem;
+                border-width: 3px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-100 via-purple-100 to-pink-100">
+
+    <div id="game-container" class="w-full max-w-2xl bg-white/50 backdrop-blur-sm p-6 sm:p-8 rounded-[2rem] shadow-xl flex flex-col items-center mx-4 border-4 border-white/60">
+        
+        <!-- Indicadores de progreso -->
+        <div class="w-full flex justify-between items-center mb-4 px-2">
+            <div class="flex items-center gap-2 bg-yellow-100 text-yellow-600 px-4 py-2 rounded-full font-bold shadow-sm">
+                <span>⭐</span>
+                <span id="score-display">0</span>
+            </div>
+            <div class="bg-indigo-100 text-indigo-500 px-4 py-2 rounded-full font-bold shadow-sm" id="progress-display">
+                1/5
+            </div>
+        </div>
+
+        <!-- Emoji Grande (Pista visual) -->
+        <div id="emoji-display" class="text-8xl sm:text-[9rem] my-6 floating-emoji drop-shadow-lg select-none">
+            🐈
+        </div>
+
+        <!-- Contenedor para las casillas de destino -->
+        <div id="word-slots" class="flex flex-wrap justify-center gap-2 sm:gap-3 mb-10 w-full">
+            <!-- Las casillas se generan con JavaScript -->
+        </div>
+
+        <!-- Contenedor para las letras desordenadas -->
+        <div id="letters-bank" class="flex flex-wrap justify-center gap-3 sm:gap-4 mb-4 w-full">
+            <!-- Los botones de letras se generan con JavaScript -->
+        </div>
+
+        <!-- Mensaje temporal de éxito entre palabras -->
+        <div id="success-message" class="hidden text-3xl font-bold text-green-500 mt-2 pop-in">
+            ¡Muy bien! ✨
+        </div>
+
+        <!-- Pantalla Final (se muestra al completar todas las palabras) -->
+        <div id="end-screen" class="hidden flex-col items-center text-center py-4 w-full">
+            <div class="text-7xl mb-4 floating-emoji">🏆</div>
+            <h2 class="text-4xl font-bold text-purple-600 mb-2">¡Completado!</h2>
+            <p class="text-xl text-gray-600 mb-8 font-semibold">¡Lo has hecho genial!</p>
+            <button onclick="initGame()" class="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 text-white font-bold text-2xl py-4 px-10 rounded-full shadow-[0_6px_0_#9333ea] active:shadow-[0_0px_0_#9333ea] active:translate-y-[6px] transition-all">
+                Jugar otra vez 🔄
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Lista de palabras con sus emojis. Incluye palabras cortas y una más larga.
+        const dictionary = [
+            { word: "SOL", emoji: "☀️" },
+            { word: "GATO", emoji: "🐈" },
+            { word: "CASA", emoji: "🏠" },
+            { word: "PERRO", emoji: "🐕" },
+            { word: "MANZANA", emoji: "🍎" },
+            { word: "LUNA", emoji: "🌙" },
+            { word: "PELOTA", emoji: "⚽" }
+        ];
+
+        let gameWords = [];
+        let currentWordIndex = 0;
+        let currentLetterIndex = 0; // Controla qué letra toca adivinar ahora (de izq a der)
+        let score = 0;
+        let isTransitioning = false; // Evita clics mientras pasa a la siguiente palabra
+
+        // Referencias DOM
+        const emojiDisplay = document.getElementById('emoji-display');
+        const wordSlotsContainer = document.getElementById('word-slots');
+        const lettersBankContainer = document.getElementById('letters-bank');
+        const successMessage = document.getElementById('success-message');
+        const endScreen = document.getElementById('end-screen');
+        const scoreDisplay = document.getElementById('score-display');
+        const progressDisplay = document.getElementById('progress-display');
+
+        // Algoritmo para desordenar arrays (Fisher-Yates)
+        function shuffleArray(array) {
+            let curId = array.length;
+            while (0 !== curId) {
+                let randId = Math.floor(Math.random() * curId);
+                curId -= 1;
+                let tmp = array[curId];
+                array[curId] = array[randId];
+                array[randId] = tmp;
+            }
+            return array;
+        }
+
+        // Inicia o reinicia la partida
+        function initGame() {
+            // Seleccionamos 5 palabras al azar del diccionario
+            let shuffledDict = shuffleArray([...dictionary]);
+            gameWords = shuffledDict.slice(0, 5); 
+            
+            currentWordIndex = 0;
+            score = 0;
+            scoreDisplay.textContent = score;
+            
+            endScreen.classList.add('hidden');
+            emojiDisplay.classList.remove('hidden');
+            wordSlotsContainer.classList.remove('hidden');
+            lettersBankContainer.classList.remove('hidden');
+            
+            loadWord();
+        }
+
+        // Carga la palabra actual en la interfaz
+        function loadWord() {
+            isTransitioning = false;
+            currentLetterIndex = 0;
+            successMessage.classList.add('hidden');
+            
+            const currentData = gameWords[currentWordIndex];
+            progressDisplay.textContent = `${currentWordIndex + 1}/${gameWords.length}`;
+            emojiDisplay.textContent = currentData.emoji;
+            
+            // Limpiar contenedores
+            wordSlotsContainer.innerHTML = '';
+            lettersBankContainer.innerHTML = '';
+
+            // 1. Crear casillas vacías (slots)
+            for (let i = 0; i < currentData.word.length; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'slot';
+                slot.id = `slot-${i}`;
+                wordSlotsContainer.appendChild(slot);
+            }
+
+            // 2. Preparar y desordenar las letras
+            let letters = currentData.word.split('');
+            // Asegurarse de que no salgan ordenadas por casualidad (si tiene > 1 letra)
+            let isSorted = true;
+            while(isSorted && letters.length > 1) {
+                shuffleArray(letters);
+                if (letters.join('') !== currentData.word) {
+                    isSorted = false;
+                }
+            }
+
+            // 3. Crear los botones de las letras
+            letters.forEach((letter) => {
+                const btn = document.createElement('div');
+                btn.className = 'letter-btn';
+                btn.textContent = letter;
+                
+                btn.addEventListener('click', () => handleLetterClick(btn, letter));
+                lettersBankContainer.appendChild(btn);
+            });
+        }
+
+        // Lógica al pulsar una letra
+        function handleLetterClick(btn, clickedLetter) {
+            // Bloqueamos si ya acertó, si el botón ya se usó, o si está cambiando de palabra
+            if (isTransitioning || btn.classList.contains('hidden-btn')) return;
+
+            const currentData = gameWords[currentWordIndex];
+            const expectedLetter = currentData.word[currentLetterIndex];
+
+            if (clickedLetter === expectedLetter) {
+                // CORRECTO
+                btn.classList.add('hidden-btn'); // Ocultar letra del banco
+                
+                // Rellenar la casilla destino
+                const slot = document.getElementById(`slot-${currentLetterIndex}`);
+                slot.textContent = clickedLetter;
+                slot.classList.add('filled', 'pop-in');
+                
+                currentLetterIndex++;
+                
+                // Comprobar si se completó la palabra
+                if (currentLetterIndex === currentData.word.length) {
+                    handleWordComplete();
+                }
+
+            } else {
+                // INCORRECTO: Animar con vibración roja
+                btn.classList.remove('error-shake'); 
+                void btn.offsetWidth; // Truco de reflow para poder repetir la animación inmediatamente
+                btn.classList.add('error-shake');
+                
+                // Quitar clase tras finalizar la animación
+                setTimeout(() => {
+                    btn.classList.remove('error-shake');
+                }, 400);
+            }
+        }
+
+        // Qué hacer cuando se completa una palabra con éxito
+        function handleWordComplete() {
+            isTransitioning = true;
+            score += 20;
+            scoreDisplay.textContent = score;
+            
+            // Mostrar mensaje efímero
+            successMessage.classList.remove('hidden');
+            lettersBankContainer.innerHTML = ''; // Ocultar los botones vacíos
+
+            // Lluvia de confeti
+            confetti({
+                particleCount: 80,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#a78bfa', '#f472b6', '#fbbf24', '#34d399']
+            });
+
+            // Transición automática tras un breve retraso
+            setTimeout(() => {
+                currentWordIndex++;
+                if (currentWordIndex < gameWords.length) {
+                    loadWord(); // Siguiente palabra
+                } else {
+                    showEndScreen(); // Fin del juego
+                }
+            }, 1800); // 1.8 segundos de retraso para celebrar
+        }
+
+        // Mostrar pantalla de victoria final
+        function showEndScreen() {
+            emojiDisplay.classList.add('hidden');
+            wordSlotsContainer.classList.add('hidden');
+            lettersBankContainer.classList.add('hidden');
+            successMessage.classList.add('hidden');
+            
+            // Festival de confeti final
+            const duration = 2500;
+            const end = Date.now() + duration;
+
+            (function frame() {
+                confetti({
+                    particleCount: 5,
+                    angle: 60,
+                    spread: 55,
+                    origin: { x: 0 },
+                    colors: ['#fef08a', '#c084fc', '#f472b6']
+                });
+                confetti({
+                    particleCount: 5,
+                    angle: 120,
+                    spread: 55,
+                    origin: { x: 1 },
+                    colors: ['#fef08a', '#c084fc', '#f472b6']
+                });
+                if (Date.now() < end) {
+                    requestAnimationFrame(frame);
+                }
+            }());
+
+            endScreen.classList.remove('hidden');
+            endScreen.classList.add('flex');
+        }
+
+        // Inicializar al cargar la ventana
+        window.onload = initGame;
+    </script>
+</body>
+</html>
